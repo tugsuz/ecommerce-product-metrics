@@ -13,6 +13,8 @@ from shopmetrics import build, experiment
 RESULTS = Path(__file__).resolve().parent / "results"
 TEST_WEEKS = 4
 PRE_WEEKS = 4
+CAP_QUANTILE = 0.999
+N_SPLITS = 2000
 
 
 def pct(x, digits=1):
@@ -94,39 +96,50 @@ def main(path):
     pre_start = test_start - timedelta(weeks=PRE_WEEKS)
     build.run_sql(con, "experiment_units",
                   {"test_start": test_start, "test_end": test_end, "pre_start": pre_start})
-    units = con.execute("SELECT * FROM experiment_units").df()
+    units = con.execute("SELECT * FROM experiment_units ORDER BY visitor_id").df()
     y = units.y_views.to_numpy(float)
     x = units.x_views.to_numpy(float)
     in_b = (units.arm == "B").to_numpy()
-    n_a, n_b = int((~in_b).sum()), int(in_b.sum())
-    y_adj, theta = experiment.cuped_adjust(y, x)
-    d_raw, se_raw, p_raw = experiment.welch(y, in_b)
-    d_adj, se_adj, p_adj = experiment.welch(y_adj, in_b)
-    sim = experiment.simulate_aa(y, x, n_splits=2000, seed=0)
     back = units.seen_before.to_numpy() == 1
-    sim_back = experiment.simulate_aa(y[back], x[back], n_splits=2000, seed=1) if back.sum() > 100 else None
-    mde_raw = experiment.mde(y.std(ddof=1), y.size / 2) / y.mean()
-    mde_adj = experiment.mde(y_adj.std(ddof=1), y.size / 2) / y.mean()
+    n_a, n_b = int((~in_b).sum()), int(in_b.sum())
+    cap = float(np.quantile(y, CAP_QUANTILE))
+    top = np.sort(y)[-max(1, int(round(y.size * (1 - CAP_QUANTILE)))):].sum() / y.sum()
+    yc, xc = np.minimum(y, cap), np.minimum(x, cap)
+    d_raw, se_raw, p_raw = experiment.welch(yc, in_b)
+    d_adj, se_adj, p_adj = experiment.welch(experiment.cuped_adjust(yc, xc)[0], in_b)
     out += [
         "## A/A test",
         "",
         f"- Test window: {test_start:%Y-%m-%d} to {test_end:%Y-%m-%d}. Covariate window: the {PRE_WEEKS} weeks before",
         f"- Visitors in the test: {y.size:,} ({pct(back.mean())} seen before the window)",
         f"- Split by hash: A {n_a:,}, B {n_b:,}, sample ratio p = {experiment.srm_pvalue(n_a, n_b):.2f}",
-        f"- Views per visitor: mean {y.mean():.3f}",
-        f"- Difference B minus A: {d_raw:+.4f} (SE {se_raw:.4f}, p = {p_raw:.2f}); "
+        f"- Metric: product views per visitor, mean {y.mean():.3f}. "
+        f"The top {pct(1 - CAP_QUANTILE)} of visitors make {pct(top)} of all views",
+        f"- Capped metric: views above {cap:.0f} (the {pct(CAP_QUANTILE)} quantile) count as {cap:.0f}",
+        f"- Hash split on the capped metric, B minus A: {d_raw:+.4f} (SE {se_raw:.4f}, p = {p_raw:.2f}); "
         f"adjusted {d_adj:+.4f} (SE {se_adj:.4f}, p = {p_adj:.2f})",
-        f"- Correlation of test-window views with pre-period views: {sim['correlation']:.2f}",
-        f"- Variance removed by the adjustment: {pct(sim['variance_reduction'])}",
-        f"- False positive rate over {sim['n_splits']:,} random splits at the 5% level: "
-        f"{pct(sim['false_positive_raw'])} raw, {pct(sim['false_positive_adjusted'])} adjusted",
-        f"- Smallest detectable lift in views per visitor (80% power): {pct(mde_raw)} raw, {pct(mde_adj)} adjusted",
+        "",
+        f"Over {N_SPLITS:,} random 50/50 splits, tests at the 5% level:",
+        "",
+        "| Metric | Visitors | SD of the difference | Variance removed by adjustment | False positives, raw | False positives, adjusted | Detectable lift, raw | Detectable lift, adjusted |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
-    if sim_back:
+    cases = [
+        ("Views, uncapped", y, x),
+        ("Views, capped", yc, xc),
+        ("Views, capped, returning visitors", yc[back], xc[back]),
+    ]
+    for i, (label, yy, xx) in enumerate(cases):
+        if yy.size < 100:
+            continue
+        sim = experiment.simulate_aa(yy, xx, n_splits=N_SPLITS, seed=i)
+        adj = experiment.cuped_adjust(yy, xx)[0]
+        m_raw = experiment.mde(yy.std(ddof=1), yy.size / 2) / yy.mean()
+        m_adj = experiment.mde(adj.std(ddof=1), yy.size / 2) / yy.mean()
         out.append(
-            f"- Returning visitors only ({int(back.sum()):,}): correlation {sim_back['correlation']:.2f}, "
-            f"variance removed {pct(sim_back['variance_reduction'])}, false positive rate "
-            f"{pct(sim_back['false_positive_raw'])} raw, {pct(sim_back['false_positive_adjusted'])} adjusted"
+            f"| {label} | {yy.size:,} | {sim['sd_diff_raw']:.4f} | {pct(sim['variance_reduction'])} | "
+            f"{pct(sim['false_positive_raw'])} | {pct(sim['false_positive_adjusted'])} | "
+            f"{pct(m_raw)} | {pct(m_adj)} |"
         )
     text = "\n".join(out) + "\n"
     (RESULTS / "summary.md").write_text(text)

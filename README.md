@@ -25,7 +25,8 @@ cart, 29% of sessions buy.
 purchase, but only 10,495 follow the order view, add to cart, purchase inside one
 session. 2,365 buying sessions have no add to cart in the same session (the item was
 put in the cart on an earlier visit, or the step was not logged). In 1,366 the
-add to cart is logged before any product view. A conversion metric
+add to cart is logged before any product view, and in 71 the purchase is logged
+before the add to cart. A conversion metric
 defined on the strict funnel reads 0.60%. Defined as "any purchase in the session"
 it reads 0.81%. The definition has to be fixed before two teams compare numbers.
 
@@ -61,15 +62,19 @@ random splits:
 
 Three things follow.
 
-1. The test is sound. False positive rates sit near 5%, and the fixed hash split
-   passes the sample ratio check (143,693 against 143,749, p = 0.92).
+1. The test behaves as it should. False positive rates run from 4.3% to 5.9%,
+   which is within simulation noise of 5% for 2,000 splits, and the fixed hash
+   split passes the sample ratio check (143,693 against 143,749, p = 0.92).
 2. Capping matters more than covariate adjustment here. The top 0.1% of visitors
    make 6.4% of all views. A few accounts have thousands of events. Capping views at
    the 99.9% quantile (33 views) cuts the smallest detectable lift from 4.4% to 1.3%.
 3. Adjusting for pre-period views (CUPED) helps only where there is a pre-period.
-   It removes 23% of the variance among returning visitors, but only 4.4% of
-   visitors in the test were seen before, so across all visitors it removes 6%.
-   On a product with mostly new traffic, this adjustment buys little.
+   On the capped metric it removes 23% of the variance among returning visitors,
+   but only 4.4% of visitors in the test were seen before, so across all visitors
+   it removes 6%. On the uncapped metric it removes 25%, but that gain comes from
+   the same few heavy accounts, which are heavy in both periods. Capping deals
+   with them directly. On a product with mostly new traffic, the adjustment buys
+   little.
 
 ## How it is built
 
@@ -104,6 +109,8 @@ same columns, and `python run_all.py data/events_synthetic.csv` runs on it.
 - Retention in week k means any event k weeks after the first-visit week.
 - Visitor ids are cookies. One person on two devices counts as two visitors.
 - The log has no prices, so there is no revenue metric.
+- The A/A test uses product views per visitor because it is not a rare event.
+  Conversion is under 1% here, so a test on it would need far more traffic.
 - The A/A test uses a fixed sample. It says nothing about a test that is checked
   many times while it runs.
 - The data is not in this repository. Retailrocket publishes it under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/). This project is non-commercial and reports only aggregate results.

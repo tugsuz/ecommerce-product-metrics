@@ -76,6 +76,11 @@ Three things follow.
    with them directly. On a product with mostly new traffic, the adjustment buys
    little.
 
+## Dashboard
+
+The weekly metrics, the funnel and the retention cohorts are on a public Looker Studio
+dashboard that reads the BigQuery tables: [E-Commerce Product Metrics](https://datastudio.google.com/reporting/99fad1d3-2726-4dc1-9d05-0afa8c49a474).
+
 ## How it is built
 
 | File | What it does |

@@ -22,6 +22,8 @@ Sandbox tables expire after 60 days. Rerun the script to rebuild them.
 
 ## Dashboard
 
+Live version: https://datastudio.google.com/reporting/99fad1d3-2726-4dc1-9d05-0afa8c49a474
+
 The tables `shop.weekly_metrics`, `shop.funnel` and `shop.retention` are shaped for a
 dashboard tool. In Looker Studio, add each as a BigQuery data source and build:
 

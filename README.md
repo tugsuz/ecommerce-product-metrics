@@ -88,7 +88,7 @@ Three things follow.
 | `sql/experiment_units.sql` | One row per visitor for the A/A test, with a hash-based split |
 | `shopmetrics/experiment.py` | Welch test, sample ratio check, CUPED adjustment, detectable lift, split simulation |
 | `run_all.py` | Runs everything and writes `results/` |
-| `bigquery/build.sql` | The same pipeline in GoogleSQL for BigQuery, with a check query |
+| `bigquery/build.sql` | The same pipeline in GoogleSQL, run on BigQuery; it reproduces the event, session, funnel and week counts above |
 | `tests/` | 11 tests on small hand-made logs with known answers |
 
 ## Run it

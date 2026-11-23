@@ -106,4 +106,4 @@ same columns, and `python run_all.py data/events_synthetic.csv` runs on it.
 - The log has no prices, so there is no revenue metric.
 - The A/A test uses a fixed sample. It says nothing about a test that is checked
   many times while it runs.
-- The data is not in this repository. See the dataset page for its terms.
+- The data is not in this repository. Retailrocket publishes it under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/). This project is non-commercial and reports only aggregate results.
